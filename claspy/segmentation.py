@@ -404,7 +404,9 @@ class BinaryClaSPSegmentation:
             for ax in axes:
                 ax.axvline(x=found_cp, linewidth=2, color="g", label="Predicted Change Point" if idx == 0 else None)
 
-        axes[0].legend(prop={"size": font_size})
+        handles, labels = axes[0].get_legend_handles_labels()
+        if handles:
+            axes[0].legend(prop={"size": font_size})
 
         if file_path is not None:
             plt.savefig(file_path, bbox_inches="tight")

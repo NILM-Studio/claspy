@@ -81,12 +81,16 @@ def process_file(file_path):
             return row['power'] - diff
             
         df['power_new'] = df.apply(adjust_power, axis=1)
-        
-        # Save to target directory
-        filename = os.path.basename(file_path)
-        output_path = os.path.join(TARGET_DIR, filename)
-        df.to_csv(output_path, index=False)
-        print(f"  Saved adjusted file to {output_path}")
+    
+    else:
+        df['cluster_label'] = -1
+        df['power_new'] = df['power']
+    
+    # Save to target directory
+    filename = os.path.basename(file_path)
+    output_path = os.path.join(TARGET_DIR, filename)
+    df.to_csv(output_path, index=False)
+    print(f"  Saved adjusted file to {output_path}")
 
 def main():
     files = glob.glob(os.path.join(SOURCE_DIR, '*.csv'))

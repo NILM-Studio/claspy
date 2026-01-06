@@ -170,7 +170,7 @@ def analyze_distribution(data_dir, plot_dir, score_dir):
     if len(split_points) > 0:
         return split_points[0]
     else:
-        raise ValueError("No split points found. Check the density plot.")
+        return None
 
 if __name__ == "__main__":
     # Default behavior for standalone run (using previous defaults)

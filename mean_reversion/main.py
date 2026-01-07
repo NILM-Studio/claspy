@@ -2,7 +2,7 @@ import os
 import sys
 
 # ============== Configuration ==============
-project_dir = "test"
+project_dir = "washing_machine"
 # ===========================================
 
 
@@ -15,7 +15,6 @@ import silhouette_distribution
 import group_adjust
 import tsd
 import shutil
-import outlier_removal
 
 def main():
     base_dir = current_dir + "/project"
@@ -36,27 +35,21 @@ def main():
 
 
 
-    # 2. Outlier Removal
-    print("\n=== Step 2: Outlier Removal ===")
+    # 2. Group Adjustment
+    print("\n=== Step 2: Group Adjustment ===")
     adjusted_data_dir = os.path.join(base_dir, project_dir, 'data')
-    
-    # Run outlier removal with input from data_input_dir and output to adjusted_data_dir
-    outlier_removal.run_outlier_removal(data_input_dir, adjusted_data_dir, split_point)
-
-    # 3. Group Adjustment
-    print("\n=== Step 3: Group Adjustment ===")
 
     if split_point is None:
-        print("No split point found. Using original data (already copied by outlier removal step).")
+        print("No split point found. Using original data.")
     else:
         group_adjust.adjust_groups(
-            adjusted_data_dir, 
+            data_input_dir, 
             adjusted_data_dir, 
             split_point
         )
 
-    # 4. Time Series Segmentation
-    print("\n=== Step 4: Time Series Segmentation ===")
+    # 3. Time Series Segmentation
+    print("\n=== Step 3: Time Series Segmentation ===")
     label_output_dir = os.path.join(base_dir, project_dir, 'label')
     score_file_path = os.path.join(score_output_dir, 'file_scores.csv')
     

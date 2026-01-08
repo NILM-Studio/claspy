@@ -2,7 +2,7 @@ import os
 import sys
 
 # ============== Configuration ==============
-project_dir = "washing_machine"
+project_dir = "microwave"
 # ===========================================
 
 
@@ -39,10 +39,7 @@ def main():
     print("\n=== Step 2: Group Adjustment ===")
     adjusted_data_dir = os.path.join(base_dir, project_dir, 'data')
 
-    if split_point is None:
-        print("No split point found. Using original data.")
-    else:
-        group_adjust.adjust_groups(
+    group_adjust.adjust_groups(
             data_input_dir, 
             adjusted_data_dir, 
             split_point

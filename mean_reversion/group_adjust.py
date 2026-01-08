@@ -103,7 +103,7 @@ def process_file(file_path, target_dir, threshold):
     # Rename original power to power_origin
     df['power_origin'] = df['power'].copy()
     
-    if best_score > threshold:
+    if threshold is not None and best_score > threshold:
         # Add labels to dataframe
         df['cluster_label'] = best_labels
         

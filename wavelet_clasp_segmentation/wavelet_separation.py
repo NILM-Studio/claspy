@@ -11,6 +11,62 @@ sys.path.insert(0, os.path.join(script_dir, ".."))
 
 from claspy.segmentation import BinaryClaSPSegmentation
 
+def sliding_window_outlier_removal(series, window_size=20, z_threshold=3.0, interpolation_method='linear'):
+    """
+    Perform sliding window outlier removal using median-based Z-score detection.
+    
+    Args:
+        series (array-like): Input time series data
+        window_size (int): Size of the sliding window
+        z_threshold (float): Z-score threshold for outlier detection
+        interpolation_method (str): Interpolation method for replacing outliers
+            Options: 'linear', 'polynomial', 'spline', 'nearest', 'zero'
+    
+    Returns:
+        tuple: (cleaned_series, outlier_count, outlier_mask)
+    """
+    import pandas as pd
+    import numpy as np
+    
+    # Convert series to pandas Series for rolling window operations
+    s = pd.Series(series)
+    
+    # Calculate rolling median and standard deviation
+    rolling_median = s.rolling(window=window_size, center=True, min_periods=1).median()
+    rolling_std = s.rolling(window=window_size, center=True, min_periods=1).std()
+    
+    # Calculate Z-scores (using median instead of mean for robustness)
+    z_scores = (s - rolling_median) / rolling_std
+    
+    # Handle NaN values in Z-scores (at the beginning and end)
+    z_scores = z_scores.fillna(0)
+    
+    # Identify outliers
+    outlier_mask = np.abs(z_scores) > z_threshold
+    outlier_count = outlier_mask.sum()
+    
+    # Create a copy of the original series for cleaning
+    cleaned_series = s.copy()
+    
+    # Interpolate outliers
+    if outlier_count > 0:
+        # Create a mask for valid values (non-outliers)
+        valid_mask = ~outlier_mask
+        
+        # Interpolate the outliers based on valid values
+        cleaned_series[outlier_mask] = np.nan
+        
+        # Use the specified interpolation method
+        cleaned_series = cleaned_series.interpolate(method=interpolation_method, limit_direction='both')
+        
+        # If there are still NaN values (at the very beginning or end), use bfill and ffill
+        cleaned_series = cleaned_series.bfill().ffill()
+    
+    # Convert back to numpy array
+    cleaned_series = cleaned_series.values
+    
+    return cleaned_series, outlier_count, outlier_mask
+
 def get_segmentation_points(time_series):
     """Segmentation logic adapted from tsd.py"""
     try:
@@ -103,7 +159,7 @@ def run_wavelet_analysis(signal, wavelet, orig_cp):
         'num_high_cp': len(high_cp)
     }
 
-def plot_results(signal, orig_cp, results, output_dir, csv_path):
+def plot_results(signal, signal_cleaned, orig_cp, results, output_dir, csv_path):
     """Generates the 4-panel plot for a specific analysis result."""
     wavelet = results['wavelet']
     low_freq_signal = results['low_freq_signal']
@@ -121,13 +177,15 @@ def plot_results(signal, orig_cp, results, output_dir, csv_path):
     green = (90/255, 164/255, 174/255)
     yellow = (250/255, 192/255, 61/255)
     synth_color = (166/255, 85/255, 157/255)
+    cleaned_color = (204/255, 93/255, 32/255)  # RGB: 204, 93, 32
     
-    # 1. Original Signal
+    # 1. Original Signal with Cleaned Signal
     plt.subplot(4, 1, 1)
     plt.plot(signal, label='Original Signal (Power)', color='gray', alpha=0.6)
+    plt.plot(signal_cleaned, label='Cleaned Signal (Outliers Removed)', color=cleaned_color, alpha=0.8)
     for cp in orig_cp:
         plt.axvline(x=cp, color=red, linestyle='--', alpha=0.8)
-    plt.title('Original Power Signal with Segmentation')
+    plt.title('Original Power Signal with Cleaned Signal and Segmentation')
     plt.legend(loc='upper right')
     plt.grid(True)
     
@@ -240,10 +298,15 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
         # 2. Load data
         df = pd.read_csv(csv_path)
         signal = df['power'].values
-        
-        # 3. Segment original signal once
+
+        # 3. Apply sliding window outlier removal
+        print("Applying sliding window outlier removal...")
+        signal_cleaned, outlier_count, outlier_mask = sliding_window_outlier_removal(signal)
+        print(f"  Detected and removed {outlier_count} outliers")
+
+        # 4. Segment original signal once
         print("Performing segmentation on original signal...")
-        orig_cp = get_segmentation_points(signal)
+        orig_cp = get_segmentation_points(signal_cleaned)
         
         # 4. Test wavelets in order 4 -> 3 -> 2 -> 1
         wavelets_to_test = ['db4', 'db3', 'db2', 'db1']
@@ -251,7 +314,7 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
         
         for idx, wv in enumerate(wavelets_to_test):
             print(f"Testing wavelet: {wv} ({idx+1}/{len(wavelets_to_test)})...")
-            res = run_wavelet_analysis(signal, wv, orig_cp)
+            res = run_wavelet_analysis(signal_cleaned, wv, orig_cp)
             res['order_priority'] = idx # Lower is better (db4=0, db1=3)
             all_results.append(res)
         
@@ -273,18 +336,18 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
             
             # Plot if requested
             if is_plot:
-                plot_results(signal, orig_cp, res, output_dir, csv_path)
+                plot_results(signal, signal_cleaned, orig_cp, res, output_dir, csv_path)
 
 if __name__ == "__main__":
     # Can be a file path or a directory path
     input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion\project\washing_machine\related\data"
-    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion\test\plot\new_plot"
+    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1
     
     # Parameter m: limit the number of files to process from a directory (None for all)
-    m_files = 4
+    m_files = 20
 
     # is_plot: whether to generate and save plots
     is_plot = True

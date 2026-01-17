@@ -8,64 +8,35 @@ import sys
 # Add project root to sys.path if needed
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(script_dir, ".."))
-
+from scipy.signal import medfilt
 from claspy.segmentation import BinaryClaSPSegmentation
 
-def sliding_window_outlier_removal(series, window_size=20, z_threshold=3.0, interpolation_method='linear'):
+def medfilt_outlier_removal(series):
     """
-    Perform sliding window outlier removal using median-based Z-score detection.
+    Perform outlier removal using median filter.
     
     Args:
         series (array-like): Input time series data
-        window_size (int): Size of the sliding window
-        z_threshold (float): Z-score threshold for outlier detection
-        interpolation_method (str): Interpolation method for replacing outliers
-            Options: 'linear', 'polynomial', 'spline', 'nearest', 'zero'
+        window_size (int): Size of the sliding window (unused, kept for compatibility)
+        z_threshold (float): Z-score threshold for outlier detection (unused, kept for compatibility)
+        interpolation_method (str): Interpolation method for replacing outliers (unused, kept for compatibility)
     
     Returns:
         tuple: (cleaned_series, outlier_count, outlier_mask)
     """
-    import pandas as pd
     import numpy as np
     
-    # Convert series to pandas Series for rolling window operations
-    s = pd.Series(series)
+    # Convert to numpy array if not already
+    ts = np.asarray(series)
     
-    # Calculate rolling median and standard deviation
-    rolling_median = s.rolling(window=window_size, center=True, min_periods=1).median()
-    rolling_std = s.rolling(window=window_size, center=True, min_periods=1).std()
+    # Apply median filter with kernel size 5
+    cleaned_series = medfilt(ts, kernel_size=5)
     
-    # Calculate Z-scores (using median instead of mean for robustness)
-    z_scores = (s - rolling_median) / rolling_std
+    # For compatibility, return dummy values for outlier_count and outlier_mask
+    # Since medfilt doesn't explicitly identify outliers, we'll return 0 and a mask of False
+    outlier_mask = np.zeros_like(ts, dtype=bool)
     
-    # Handle NaN values in Z-scores (at the beginning and end)
-    z_scores = z_scores.fillna(0)
-    
-    # Identify outliers
-    outlier_mask = np.abs(z_scores) > z_threshold
-    outlier_count = outlier_mask.sum()
-    
-    # Create a copy of the original series for cleaning
-    cleaned_series = s.copy()
-    
-    # Interpolate outliers
-    if outlier_count > 0:
-        # Create a mask for valid values (non-outliers)
-        valid_mask = ~outlier_mask
-        
-        # Interpolate the outliers based on valid values
-        cleaned_series[outlier_mask] = np.nan
-        
-        # Use the specified interpolation method
-        cleaned_series = cleaned_series.interpolate(method=interpolation_method, limit_direction='both')
-        
-        # If there are still NaN values (at the very beginning or end), use bfill and ffill
-        cleaned_series = cleaned_series.bfill().ffill()
-    
-    # Convert back to numpy array
-    cleaned_series = cleaned_series.values
-    
-    return cleaned_series, outlier_count, outlier_mask
+    return cleaned_series, outlier_mask
 
 def get_segmentation_points(time_series):
     """Segmentation logic adapted from tsd.py"""
@@ -299,10 +270,10 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
         df = pd.read_csv(csv_path)
         signal = df['power'].values
 
-        # 3. Apply sliding window outlier removal
-        print("Applying sliding window outlier removal...")
-        signal_cleaned, outlier_count, outlier_mask = sliding_window_outlier_removal(signal)
-        print(f"  Detected and removed {outlier_count} outliers")
+        # 3. Apply median filter outlier removal
+        print("Applying median filter outlier removal...")
+        signal_cleaned, outlier_mask = medfilt_outlier_removal(signal)
+        print(f"  Detected and removed {outlier_mask.sum()} outliers")
 
         # 4. Segment original signal once
         print("Performing segmentation on original signal...")
@@ -341,15 +312,15 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
 if __name__ == "__main__":
     # Can be a file path or a directory path
     input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion\project\washing_machine\related\data"
-    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result"
+    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\washine_machine\label"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1
     
     # Parameter m: limit the number of files to process from a directory (None for all)
-    m_files = 20
+    m_files = 10000
 
     # is_plot: whether to generate and save plots
-    is_plot = True
+    is_plot = False
     
     main(input_source, output_directory, n=n_plots, m=m_files, is_plot=is_plot)

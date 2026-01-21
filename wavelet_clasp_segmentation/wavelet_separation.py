@@ -127,7 +127,8 @@ def run_wavelet_analysis(signal, wavelet, orig_cp):
         'synthesized_cp': synthesized_cp,
         'ref_name': ref_name,
         'num_low_cp': len(low_cp),
-        'num_high_cp': len(high_cp)
+        'num_high_cp': len(high_cp),
+        'cleaned_signal': signal
     }
 
 def plot_results(signal, signal_cleaned, orig_cp, results, output_dir, csv_path):
@@ -251,34 +252,74 @@ def plot_results(signal, signal_cleaned, orig_cp, results, output_dir, csv_path)
     plt.close()
     print(f"Heatmap plot saved to {heatmap_path}")
 
-def export_synthesized_cp(df, synth_cp, output_dir, csv_path, wavelet):
+def export_synthesized_cp(df, results, output_dir, csv_path):
     """
-    Exports synthesized changepoints to a CSV file.
-    Format: timestamp, power, datetime, changepoint_index
+    Exports signals to data/ subfolder and changepoints to label/ subfolder.
     """
-    export_data = []
-    for cp in synth_cp:
-        idx = int(round(cp))
-        if 0 <= idx < len(df):
-            export_data.append({
-                "timestamp": df.iloc[idx]["timestamp"] if "timestamp" in df.columns else idx,
-                "power": df.iloc[idx]["power"],
-                "datetime": df.iloc[idx]["datetime"] if "datetime" in df.columns else None,
-                "changepoint_index": idx
-            })
+    filename_base = os.path.basename(csv_path).split('.')[0]
+
+    # 1. Export Signals to data/
+    data_dir = os.path.join(output_dir, 'data')
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+
+    # Combine signals into a single DataFrame
+    # Target columns: timestamp, power, cleaned_power, high_freq, low_freq, datetime
+    signal_export_data = {
+        "timestamp": df["timestamp"] if "timestamp" in df.columns else df.index,
+        "power": df["power"],
+        "cleaned_power": results['cleaned_signal'] if 'cleaned_signal' in results else np.zeros(len(df)),
+        "high_freq": results['high_freq_combined'] if 'high_freq_combined' in results else np.zeros(len(df)),
+        "low_freq": results['low_freq_signal'] if 'low_freq_signal' in results else np.zeros(len(df)),
+        "datetime": df["datetime"] if "datetime" in df.columns else [None]*len(df)
+    }
     
+    sig_df = pd.DataFrame(signal_export_data)
+    # Ensure column order
+    sig_cols = ["timestamp", "power", "cleaned_power", "high_freq", "low_freq", "datetime"]
+    sig_df = sig_df[[c for c in sig_cols if c in sig_df.columns]]
+    
+    out_name = f"{filename_base}.csv"
+    out_path = os.path.join(data_dir, out_name)
+    sig_df.to_csv(out_path, index=False)
+    print(f"Signals exported to {out_path}")
+
+    # 2. Export Changepoints to label/
+    label_dir = os.path.join(output_dir, 'label')
+    if not os.path.exists(label_dir):
+        os.makedirs(label_dir)
+
+    export_data = []
+    # 0: synthesized_cp, 1: low_cp, 2: high_cp
+    cp_sets = [
+        (results.get('synthesized_cp', []), 0),
+        (results.get('low_cp', []), 1),
+        (results.get('high_cp', []), 2)
+    ]
+
+    for cp_list, label_type in cp_sets:
+        for cp in cp_list:
+            idx = int(round(cp))
+            if 0 <= idx < len(df):
+                export_data.append({
+                    "timestamp": df.iloc[idx]["timestamp"] if "timestamp" in df.columns else idx,
+                    "power": df.iloc[idx]["power"],
+                    "datetime": df.iloc[idx]["datetime"] if "datetime" in df.columns else None,
+                    "changepoint_index": idx,
+                    "label_type": label_type
+                })
+
     if export_data:
         export_df = pd.DataFrame(export_data)
         # Reorder columns
-        cols = ["timestamp", "power", "datetime", "changepoint_index"]
+        cols = ["timestamp", "power", "datetime", "changepoint_index", "label_type"]
         export_df = export_df[[c for c in cols if c in export_df.columns]]
         
-        filename_base = os.path.basename(csv_path).split('.')[0]
-        output_path = os.path.join(output_dir, f"Changepoints_{filename_base}.csv")
+        output_path = os.path.join(label_dir, f"Changepoints_{filename_base}.csv")
         export_df.to_csv(output_path, index=False)
-        print(f"Synthesized changepoints exported to {output_path}")
+        print(f"Changepoints exported to {output_path}")
 
-def main(input_path, output_dir, n=2, m=None, is_plot=True):
+def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
     # 1. Resolve input files
     if os.path.isfile(input_path):
         target_files = [input_path]
@@ -303,9 +344,17 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
         df = pd.read_csv(csv_path)
         signal = df['power'].values
 
+        if apply_diff:
+            print("Applying rate of change conversion (diff)...")
+            # Calculate difference: posterior - anterior
+            # Pad with 0 at the beginning to maintain signal length
+            signal_cleaned = np.concatenate(([0], np.diff(signal)))
+        else:
+            signal_cleaned = signal
+        
         # 3. Apply median filter outlier removal
         print("Applying median filter outlier removal...")
-        signal_cleaned, outlier_mask = medfilt_outlier_removal(signal)
+        signal_cleaned, outlier_mask = medfilt_outlier_removal(signal_cleaned)
         print(f"  Detected and removed {outlier_mask.sum()} outliers")
 
         # 4. Segment original signal once
@@ -336,7 +385,7 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
             
             # Export CSV only for Rank 1 (best result) to match naming requirement
             if i == 0:
-                export_synthesized_cp(df, res['synthesized_cp'], output_dir, csv_path, res['wavelet'])
+                export_synthesized_cp(df, res, output_dir, csv_path)
             
             # Plot if requested
             if is_plot:
@@ -344,16 +393,20 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
 
 if __name__ == "__main__":
     # Can be a file path or a directory path
-    input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion\project\washing_machine\data"
-    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result3"
+    input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion(out-of-date)\project\washing_machine\related\data"
+    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result7"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1
     
     # Parameter m: limit the number of files to process from a directory (None for all)
-    m_files = 20
+    m_files = 10000
+    
+    # Parameter apply_diff: whether to apply rate of change conversion (diff)
+    # If True, calculates the difference between consecutive points (posterior - anterior)
+    apply_diff = False
 
     # is_plot: whether to generate and save plots
-    is_plot = True
+    is_plot = False
     
-    main(input_source, output_directory, n=n_plots, m=m_files, is_plot=is_plot)
+    main(input_source, output_directory, n=n_plots, m=m_files, is_plot=is_plot, apply_diff=apply_diff)

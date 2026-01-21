@@ -2,7 +2,7 @@ import os
 import sys
 
 # ============== Configuration ==============
-project_dir = "microwave"
+project_dir = "dishwasher"
 # ===========================================
 
 

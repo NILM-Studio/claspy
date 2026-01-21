@@ -8,35 +8,8 @@ import sys
 # Add project root to sys.path if needed
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(script_dir, ".."))
-from scipy.signal import medfilt
-from claspy.segmentation import BinaryClaSPSegmentation
 
-def medfilt_outlier_removal(series):
-    """
-    Perform outlier removal using median filter.
-    
-    Args:
-        series (array-like): Input time series data
-        window_size (int): Size of the sliding window (unused, kept for compatibility)
-        z_threshold (float): Z-score threshold for outlier detection (unused, kept for compatibility)
-        interpolation_method (str): Interpolation method for replacing outliers (unused, kept for compatibility)
-    
-    Returns:
-        tuple: (cleaned_series, outlier_count, outlier_mask)
-    """
-    import numpy as np
-    
-    # Convert to numpy array if not already
-    ts = np.asarray(series)
-    
-    # Apply median filter with kernel size 5
-    cleaned_series = medfilt(ts, kernel_size=5)
-    
-    # For compatibility, return dummy values for outlier_count and outlier_mask
-    # Since medfilt doesn't explicitly identify outliers, we'll return 0 and a mask of False
-    outlier_mask = np.zeros_like(ts, dtype=bool)
-    
-    return cleaned_series, outlier_mask
+from claspy.segmentation import BinaryClaSPSegmentation
 
 def get_segmentation_points(time_series):
     """Segmentation logic adapted from tsd.py"""
@@ -130,7 +103,7 @@ def run_wavelet_analysis(signal, wavelet, orig_cp):
         'num_high_cp': len(high_cp)
     }
 
-def plot_results(signal, signal_cleaned, orig_cp, results, output_dir, csv_path):
+def plot_results(signal, orig_cp, results, output_dir, csv_path):
     """Generates the 4-panel plot for a specific analysis result."""
     wavelet = results['wavelet']
     low_freq_signal = results['low_freq_signal']
@@ -148,15 +121,13 @@ def plot_results(signal, signal_cleaned, orig_cp, results, output_dir, csv_path)
     green = (90/255, 164/255, 174/255)
     yellow = (250/255, 192/255, 61/255)
     synth_color = (166/255, 85/255, 157/255)
-    cleaned_color = (204/255, 93/255, 32/255)  # RGB: 204, 93, 32
     
-    # 1. Original Signal with Cleaned Signal
+    # 1. Original Signal
     plt.subplot(4, 1, 1)
     plt.plot(signal, label='Original Signal (Power)', color='gray', alpha=0.6)
-    plt.plot(signal_cleaned, label='Cleaned Signal (Outliers Removed)', color=cleaned_color, alpha=0.8)
     for cp in orig_cp:
         plt.axvline(x=cp, color=red, linestyle='--', alpha=0.8)
-    plt.title('Original Power Signal with Cleaned Signal and Segmentation')
+    plt.title('Original Power Signal with Segmentation')
     plt.legend(loc='upper right')
     plt.grid(True)
     
@@ -211,45 +182,12 @@ def plot_results(signal, signal_cleaned, orig_cp, results, output_dir, csv_path)
     plt.grid(True)
     
     plt.tight_layout()
-
+    
     filename_base = os.path.basename(csv_path).split('.')[0]
     plot_path = os.path.join(output_dir, f'wavelet_separation_{filename_base}_{wavelet}.png')
     plt.savefig(plot_path)
     plt.close() # Close to free memory
     print(f"Result plot saved to {plot_path}")
-
-    # ---------------------------------------------------------
-    # Generate Wavelet Transform Heatmap (Scalogram)
-    # ---------------------------------------------------------
-    # Continuous Wavelet Transform (CWT) to visualize Time-Frequency-Energy
-    # Scales: 1 to 128. Small scale = High Freq, Large scale = Low Freq
-    scales = np.arange(1, 128)
-    
-    # Use a continuous wavelet for visualization (e.g. Complex Morlet)
-    # Discrete wavelets like 'db4' are not always suitable or supported for CWT in all pywt versions
-    cwt_wavelet = 'cmor1.5-1.0'
-    try:
-        cwtmatr, freqs = pywt.cwt(low_freq_signal, scales, cwt_wavelet)
-    except Exception:
-        # Fallback to Mexican Hat if Complex Morlet is not available
-        cwt_wavelet = 'mexh'
-        cwtmatr, freqs = pywt.cwt(low_freq_signal, scales, cwt_wavelet)
-    
-    plt.figure(figsize=(15, 8))
-    # X-axis: Time, Y-axis: Scale
-    # origin='lower' ensures Scale 1 is at the bottom
-    plt.imshow(np.abs(cwtmatr), extent=[0, len(low_freq_signal), scales[0], scales[-1]], 
-               cmap='jet', aspect='auto', interpolation='nearest', origin='lower')
-    
-    plt.colorbar(label='Coefficient Magnitude (Energy)')
-    plt.xlabel('Time (Index)')
-    plt.ylabel('Wavelet Scale (Small=High Freq, Large=Low Freq)')
-    plt.title(f'Wavelet Transform Heatmap (Scalogram) of Low Freq Signal\nWavelet: {cwt_wavelet}')
-    
-    heatmap_path = os.path.join(output_dir, f'wavelet_heatmap_{filename_base}_{cwt_wavelet}.png')
-    plt.savefig(heatmap_path)
-    plt.close()
-    print(f"Heatmap plot saved to {heatmap_path}")
 
 def export_synthesized_cp(df, synth_cp, output_dir, csv_path, wavelet):
     """
@@ -302,15 +240,10 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
         # 2. Load data
         df = pd.read_csv(csv_path)
         signal = df['power'].values
-
-        # 3. Apply median filter outlier removal
-        print("Applying median filter outlier removal...")
-        signal_cleaned, outlier_mask = medfilt_outlier_removal(signal)
-        print(f"  Detected and removed {outlier_mask.sum()} outliers")
-
-        # 4. Segment original signal once
+        
+        # 3. Segment original signal once
         print("Performing segmentation on original signal...")
-        orig_cp = get_segmentation_points(signal_cleaned)
+        orig_cp = get_segmentation_points(signal)
         
         # 4. Test wavelets in order 4 -> 3 -> 2 -> 1
         wavelets_to_test = ['db4', 'db3', 'db2', 'db1']
@@ -318,7 +251,7 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
         
         for idx, wv in enumerate(wavelets_to_test):
             print(f"Testing wavelet: {wv} ({idx+1}/{len(wavelets_to_test)})...")
-            res = run_wavelet_analysis(signal_cleaned, wv, orig_cp)
+            res = run_wavelet_analysis(signal, wv, orig_cp)
             res['order_priority'] = idx # Lower is better (db4=0, db1=3)
             all_results.append(res)
         
@@ -340,18 +273,18 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True):
             
             # Plot if requested
             if is_plot:
-                plot_results(signal, signal_cleaned, orig_cp, res, output_dir, csv_path)
+                plot_results(signal, orig_cp, res, output_dir, csv_path)
 
 if __name__ == "__main__":
     # Can be a file path or a directory path
-    input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion\project\washing_machine\data"
-    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result3"
+    input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion\project\washing_machine\related\data"
+    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion\test\plot\new_plot"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1
     
     # Parameter m: limit the number of files to process from a directory (None for all)
-    m_files = 20
+    m_files = 4
 
     # is_plot: whether to generate and save plots
     is_plot = True

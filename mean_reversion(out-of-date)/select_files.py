@@ -14,7 +14,7 @@ START_DATE = "20140101"
 END_DATE = "20141231"
 
 # Sampling configuration
-SAMPLE_SIZE = 2000  # Number of files to sample. Set to None to select all matching files.
+SAMPLE_SIZE = None  # Number of files to sample. Set to None to select all matching files.
 # =================================================
 
 def extract_dates_from_filename(filename):

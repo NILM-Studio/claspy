@@ -364,12 +364,15 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
         # 4. Test wavelets in order 4 -> 3 -> 2 -> 1
         wavelets_to_test = ['db4', 'db3', 'db2', 'db1']
         all_results = []
+        db4_result = None
         
         for idx, wv in enumerate(wavelets_to_test):
             print(f"Testing wavelet: {wv} ({idx+1}/{len(wavelets_to_test)})...")
             res = run_wavelet_analysis(signal_cleaned, wv, orig_cp)
             res['order_priority'] = idx # Lower is better (db4=0, db1=3)
             all_results.append(res)
+            if wv == 'db4':
+                db4_result = res
         
         # 5. Sorting logic:
         # - Low-Freq points (descending)
@@ -385,7 +388,13 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
             
             # Export CSV only for Rank 1 (best result) to match naming requirement
             if i == 0:
-                export_synthesized_cp(df, res, output_dir, csv_path)
+                # Use db4 signals for export regardless of the best wavelet
+                export_res = res.copy()
+                if db4_result is not None:
+                    export_res['low_freq_signal'] = db4_result['low_freq_signal']
+                    export_res['high_freq_combined'] = db4_result['high_freq_combined']
+                
+                export_synthesized_cp(df, export_res, output_dir, csv_path)
             
             # Plot if requested
             if is_plot:
@@ -393,8 +402,8 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
 
 if __name__ == "__main__":
     # Can be a file path or a directory path
-    input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion(out-of-date)\project\washing_machine\related\data"
-    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result7"
+    input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion(out-of-date)\project\fridge\related\data"
+    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\all_machine\fridge"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1

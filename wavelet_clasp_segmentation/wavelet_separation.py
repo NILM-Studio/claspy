@@ -38,7 +38,7 @@ def medfilt_outlier_removal(series):
     
     return cleaned_series, outlier_mask
 
-def get_segmentation_points(time_series):
+def get_segmentation_points(time_series, distance="znormed_euclidean_distance"):
     """Segmentation logic adapted from tsd.py"""
     try:
         clasp = BinaryClaSPSegmentation(
@@ -46,6 +46,7 @@ def get_segmentation_points(time_series):
             window_size="suss",
             validation="score_threshold",
             threshold=0.001,
+            distance=distance,
         )
         clasp.fit_predict(time_series)
         return clasp.change_points
@@ -112,8 +113,11 @@ def run_wavelet_analysis(signal, wavelet, orig_cp):
     high_freq_combined = high_freq_combined[:len(signal)]
     
     # 3. Segmentation
-    low_cp = get_segmentation_points(low_freq_signal)
-    high_cp = get_segmentation_points(high_freq_combined)
+    if is_shape_dtw:
+        low_cp = get_segmentation_points(low_freq_signal, distance="shape_dtw")
+    else:
+        low_cp = get_segmentation_points(low_freq_signal, distance="znormed_euclidean_distance")
+    high_cp = get_segmentation_points(high_freq_combined, distance="znormed_euclidean_distance")
     
     # 4. Synthesis
     synthesized_cp, ref_name = synthesize_changepoints(orig_cp, low_cp, high_cp)
@@ -359,7 +363,7 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
 
         # 4. Segment original signal once
         print("Performing segmentation on original signal...")
-        orig_cp = get_segmentation_points(signal_cleaned)
+        orig_cp = get_segmentation_points(signal_cleaned, distance="shape_dtw")
         
         # 4. Test wavelets in order 4 -> 3 -> 2 -> 1
         wavelets_to_test = ['db4', 'db3', 'db2', 'db1']
@@ -402,20 +406,24 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
 
 if __name__ == "__main__":
     # Can be a file path or a directory path
-    input_source = r"./mean_reversion(out-of-date)\select\output"
-    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\all_machine\fridge"
+    # input_source = r"./mean_reversion(out-of-date)\project\washing_machine\related\data"
+    input_source = r"./wavelet_clasp_segmentation\process_data\process_data\washing_machine_channel_5"
+    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result8_oridata_orisep_shapedtw"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1
     
     # Parameter m: limit the number of files to process from a directory (None for all)
-    m_files = 10000
+    m_files = 50
     
     # Parameter apply_diff: whether to apply rate of change conversion (diff)
     # If True, calculates the difference between consecutive points (posterior - anterior)
     apply_diff = False
 
     # is_plot: whether to generate and save plots
-    is_plot = False
+    is_plot = True
+
+    # is_shape_dtw: 
+    is_shape_dtw = True
     
     main(input_source, output_directory, n=n_plots, m=m_files, is_plot=is_plot, apply_diff=apply_diff)

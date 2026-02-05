@@ -205,10 +205,72 @@ def cinvariant_euclidean_distance(idx, dot, window_size, preprocessing, squared=
     return np.sqrt(ed) * np.sqrt(cf)
 
 
+@njit(fastmath=True, cache=True)
+def compute_dtw(s1, s2):
+    """
+    Compute Dynamic Time Warping (DTW) distance between two sequences s1 and s2.
+    """
+    n = len(s1)
+    m = len(s2)
+    dtw_matrix = np.full((n + 1, m + 1), np.inf)
+    dtw_matrix[0, 0] = 0
+
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            cost = (s1[i - 1] - s2[j - 1]) ** 2
+            dtw_matrix[i, j] = cost + min(dtw_matrix[i - 1, j],    # insertion
+                                          dtw_matrix[i, j - 1],    # deletion
+                                          dtw_matrix[i - 1, j - 1]) # match
+    return dtw_matrix[n, m]
+
+
+@njit(fastmath=True, cache=True)
+def sliding_subsequences(time_series, window_size):
+    """
+    Extract and z-normalize all subsequences of a given window size.
+    """
+    n = len(time_series)
+    n_subs = n - window_size + 1
+    subs = np.zeros((n_subs, window_size))
+    for i in range(n_subs):
+        sub = time_series[i : i + window_size].copy()
+        mean = np.mean(sub)
+        std = np.std(sub)
+        if std < 1e-6:
+            std = 1.0
+        subs[i] = (sub - mean) / std
+    return (subs,)
+
+
+@njit(fastmath=True, cache=True)
+def shape_dtw_distance(idx, dot, window_size, preprocessing, squared=True):
+    """
+    Computes the ShapeDTW distance between a time series subsequence at index `idx`
+    and all other ones.
+    
+    Note: 'dot' parameter is ignored as DTW does not use dot product optimization.
+    """
+    subs = preprocessing[0]
+    n_subs = len(subs)
+    dists = np.zeros(n_subs)
+    target = subs[idx]
+    
+    for i in range(n_subs):
+        if i == idx:
+            dists[i] = 0.0
+        else:
+            d = compute_dtw(target, subs[i])
+            dists[i] = d
+            
+    if squared is True: return dists
+    return np.sqrt(dists)
+
+
 _DISTANCE_MAPPING = {
     "znormed_euclidean_distance": (sliding_mean_std, znormed_euclidean_distance),
     "euclidean_distance": (sliding_csum, euclidean_distance),
-    "cinvariant_euclidean_distance": (sliding_csum_dcsum, cinvariant_euclidean_distance)
+    "cinvariant_euclidean_distance": (sliding_csum_dcsum, cinvariant_euclidean_distance),
+    "shape_dtw": (sliding_subsequences, shape_dtw_distance)
 }
 
 

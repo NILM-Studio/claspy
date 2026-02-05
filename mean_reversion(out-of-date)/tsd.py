@@ -1,5 +1,6 @@
 import os
 import sys
+import gc
 import pandas as pd
 import numpy as np
 from claspy.segmentation import BinaryClaSPSegmentation
@@ -103,6 +104,7 @@ def run_segmentation(data_dir, label_dir, score_file_path=None):
         
         if (i + 1) % 10 == 0:
             print(f"Processed {i + 1}/{len(files)} files...")
+            gc.collect()
 
 if __name__ == "__main__":
     dir_path = os.path.join(script_dir, "washing_machine_cluster")

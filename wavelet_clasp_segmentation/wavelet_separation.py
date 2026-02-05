@@ -402,7 +402,7 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
 
 if __name__ == "__main__":
     # Can be a file path or a directory path
-    input_source = r"F:\B__ProfessionProject\NILM\Clasp\mean_reversion(out-of-date)\project\fridge\related\data"
+    input_source = r"./mean_reversion(out-of-date)\select\output"
     output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\all_machine\fridge"
     
     # Parameter n: generate top n plots for each file

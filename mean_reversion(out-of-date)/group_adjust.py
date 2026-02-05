@@ -1,5 +1,6 @@
 import os
 import glob
+import gc
 import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
@@ -199,6 +200,7 @@ def adjust_groups(source_dir, target_dir, threshold):
         process_file(file_path, target_dir, threshold)
         if (i + 1) % 10 == 0:
             print(f"Processed {i + 1}/{len(files)} files...")
+            gc.collect()
 
 if __name__ == "__main__":
     # Test with project test data

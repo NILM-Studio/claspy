@@ -6,15 +6,15 @@ import re
 import random
 
 # ================= Configuration =================
-INPUT_DIR = r"f:\B__ProfessionProject\NILM\Clasp\mean_reversion\select\data"
-OUTPUT_DIR = r"f:\B__ProfessionProject\NILM\Clasp\mean_reversion\select\output"
+INPUT_DIR = r"f:\B__ProfessionProject\NILM\Clasp\mean_reversion(out-of-date)\select\data"
+OUTPUT_DIR = r"f:\B__ProfessionProject\NILM\Clasp\mean_reversion(out-of-date)\select\output"
 
 # Pre-set start and end dates (YYYYMMDD format)
 START_DATE = "20140101"
 END_DATE = "20141231"
 
 # Sampling configuration
-SAMPLE_SIZE = None  # Number of files to sample. Set to None to select all matching files.
+SAMPLE_SIZE = 7000  # Number of files to sample. Set to None to select all matching files.
 # =================================================
 
 def extract_dates_from_filename(filename):

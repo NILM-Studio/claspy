@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import gc
 from sklearn.cluster import KMeans
 from sklearn.metrics import calinski_harabasz_score, silhouette_score
 from sklearn.neighbors import KernelDensity
@@ -78,6 +79,18 @@ def analyze_distribution(data_dir, plot_dir, score_dir):
         
         if (i + 1) % 10 == 0:
             print(f"Processed {i + 1}/{len(files)} files...")
+            
+        if (i + 1) % 100 == 0:
+            # Save checkpoints to avoid data loss on crash and free memory
+            print(f"Saving checkpoint at {i + 1} files...")
+            checkpoint_npy = os.path.join(score_dir, 'silhouette_scores_checkpoint.npy')
+            np.save(checkpoint_npy, np.array(silhouette_scores))
+            
+            checkpoint_csv = os.path.join(score_dir, 'file_scores_checkpoint.csv')
+            pd.DataFrame(file_score_map).to_csv(checkpoint_csv, index=False)
+            
+            # Force garbage collection
+            gc.collect()
 
     if not silhouette_scores:
         print("No valid silhouette scores found.")

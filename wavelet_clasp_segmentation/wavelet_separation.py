@@ -4,6 +4,7 @@ import pywt
 import matplotlib.pyplot as plt
 import os
 import sys
+import gc
 
 # Add project root to sys.path if needed
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -404,26 +405,30 @@ def main(input_path, output_dir, n=2, m=None, is_plot=True, apply_diff=False):
             if is_plot:
                 plot_results(signal, signal_cleaned, orig_cp, res, output_dir, csv_path)
 
+        # Explicitly clear large variables to free memory
+        del df, signal, signal_cleaned, all_results, db4_result
+        gc.collect()
+
 if __name__ == "__main__":
     # Can be a file path or a directory path
-    # input_source = r"./mean_reversion(out-of-date)\project\washing_machine\related\data"
-    input_source = r"./wavelet_clasp_segmentation\process_data\process_data\washing_machine_channel_5"
-    output_directory = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\result8_oridata_orisep_shapedtw"
+    input_source = r"./mean_reversion(out-of-date)\select\output"
+    # input_source = r"./wavelet_clasp_segmentation\process_data\process_data\washing_machine_channel_5"
+    output_directory = r"./wavelet_clasp_segmentation\all_machine\fridge"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1
     
     # Parameter m: limit the number of files to process from a directory (None for all)
-    m_files = 50
+    m_files = 10000
     
     # Parameter apply_diff: whether to apply rate of change conversion (diff)
     # If True, calculates the difference between consecutive points (posterior - anterior)
     apply_diff = False
 
     # is_plot: whether to generate and save plots
-    is_plot = True
+    is_plot = False
 
     # is_shape_dtw: 
-    is_shape_dtw = True
+    is_shape_dtw = False
     
     main(input_source, output_directory, n=n_plots, m=m_files, is_plot=is_plot, apply_diff=apply_diff)

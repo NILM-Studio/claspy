@@ -264,64 +264,120 @@ def fluss_visualize(ts, mp=None, mpi=None, ac=None, cac=None, segments=None, win
 
 
 if __name__ == "__main__":
-    # 配置路径
-    data_dir = r"F:\B__ProfessionProject\NILM\Clasp\data\washing_machine"
-    output_dir = r"f:\B__ProfessionProject\NILM\Clasp\comparison\outputs\label"
+    # 根配置路径
+    base_data_dir = r"F:\B__ProfessionProject\NILM\Clasp\data"
+    base_label_dir = r"F:\B__ProfessionProject\NILM\Clasp\wavelet_clasp_segmentation\outputs\all_machine"
+    base_output_dir = r"F:\B__ProfessionProject\NILM\Clasp\comparison\outputs"
 
-    # 读取文件数
-    n = 10
+    # 获取所有电器子目录
+    appliances = [d for d in os.listdir(base_data_dir) if os.path.isdir(os.path.join(base_data_dir, d))]
 
-    # 确保输出目录存在
-    os.makedirs(output_dir, exist_ok=True)
+    for appliance in appliances:
+        print(f"\n===== 正在处理电器: {appliance} =====")
+        data_dir = os.path.join(base_data_dir, appliance)
+        label_dir = os.path.join(base_label_dir, appliance, "label")
+        output_dir = os.path.join(base_output_dir, appliance)
 
-    # 获取所有CSV文件
-    csv_files = glob.glob(os.path.join(data_dir, "*.csv"))
+        # 确保输出目录存在
+        os.makedirs(output_dir, exist_ok=True)
 
-    print(f"找到 {len(csv_files)} 个数据文件，准备开始处理...")
+        # 获取该电器的所有CSV文件
+        csv_files = glob.glob(os.path.join(data_dir, "*.csv"))
+        print(f"找到 {len(csv_files)} 个数据文件。")
 
-    i = 0
-    for file_path in csv_files:
-        if i == n:
-            break
-        i += 1
-        
-        file_name = os.path.basename(file_path)
-        print(f"正在处理: {file_name}")
+        for file_path in csv_files:
+            file_name = os.path.basename(file_path)
+            # 对应的 label 文件名
+            label_file_name = f"Changepoints_{file_name}"
+            label_file_path = os.path.join(label_dir, label_file_name)
 
-        try:
-            # 保存结果文件名
-            output_file_name = f"Changepoints_{file_name}"
-            output_file_path = os.path.join(output_dir, output_file_name)
+            # 默认参数
+            window_size = 20
+            n_regimes = 3
+            excl_factor = 5
 
-            # 读取数据
-            df = pd.read_csv(file_path)
-            if len(df) < 50:  # 数据量过少跳过
-                print(f"文件 {file_name} 数据量过少 ({len(df)})，跳过。")
-                continue
+            # 如果存在 Wavelet label 文件，读取并动态调整参数
+            if os.path.exists(label_file_path):
+                try:
+                    df_label = pd.read_csv(label_file_path)
+                    # 过滤 label_type = 0 的标签（代表主分割点）
+                    main_labels = df_label[df_label['label_type'] == 0].sort_values('changepoint_index')
+                    
+                    if not main_labels.empty:
+                        # 1. 填写 n_regimes (分割点个数 + 1)
+                        n_regimes = len(main_labels) + 1
+                        
+                        # 2. 计算各个分段的宽度，用于调整 excl_factor
+                        # 读取数据获取总长度
+                        df_temp = pd.read_csv(file_path)
+                        total_len = len(df_temp)
+                        
+                        # 分割点位置
+                        split_points = main_labels['changepoint_index'].values
+                        # 计算各分段宽度: [0, p1, p2, ..., total_len]
+                        points = np.concatenate([[0], split_points, [total_len]])
+                        widths = np.diff(points)
+                        min_width = np.min(widths)
+                        
+                        # 3. 动态调整 excl_factor (最小分割点间隔)
+                        # 我们希望排除区域 (window_size * excl_factor) 小于最小分段宽度的一半
+                        # 确保 excl_factor 至少为 1
+                        excl_factor = max(1, int(min_width / (2 * window_size)))
+                        print(f"[{appliance}] 处理 {file_name}: n_regimes={n_regimes}, excl_factor={excl_factor}")
+                    else:
+                        # 如果没有 label_type=0，说明该文件没有显著分段
+                        n_regimes = 1
+                        # print(f"[{appliance}] 文件 {file_name} 没有 label_type=0，设置 n_regimes=1")
+                except Exception as e:
+                    print(f"读取标签文件 {label_file_name} 出错: {e}")
+            else:
+                # 如果没有 label 文件，则使用默认参数
+                # print(f"找不到标签文件 {label_file_name}，使用默认参数。")
+                pass
 
-            ts = df['power'].values.astype(np.float64)
+            try:
+                # 保存结果路径
+                output_file_name = f"Changepoints_{file_name}"
+                output_file_path = os.path.join(output_dir, output_file_name)
 
-            # 运行FLUSS (window_size=20, n_regimes=3)
-            # 根据用户需求，n_regimes=3 会检测出2个分割点
-            _, regime_locations = fluss(ts, window_size=20, n_regimes=3, excl_factor=10, visualize=False)
+                # 跳过已处理的文件
+                if os.path.exists(output_file_path):
+                    continue
 
-            # 准备输出数据
-            results = []
-            for idx in regime_locations:
-                if idx < len(df):
-                    row = df.iloc[idx]
-                    results.append({
-                        'timestamp': row['timestamp'],
-                        'power': row['power'],
-                        'datetime': row['datetime'],
-                        'changepoint_index': idx
-                    })
+                # 读取数据并运行 FLUSS
+                df = pd.read_csv(file_path)
+                if len(df) < 50:
+                    continue
 
-            # 保存结果
-            pd.DataFrame(results).to_csv(output_file_path, index=False)
-            # print(f"结果已保存到: {output_file_path}")
+                if n_regimes <= 1:
+                    # 如果 n_regimes 为 1，则没有分割点，直接跳过
+                    continue
 
-        except Exception as e:
-            print(f"处理文件 {file_name} 时发生错误: {e}")
+                ts = df['power'].values.astype(np.float64)
 
-    print(f"所有文件处理完成！结果保存在: {output_dir}")
+                # 运行 FLUSS
+                _, regime_locations = fluss(ts, window_size=window_size, n_regimes=n_regimes, excl_factor=excl_factor, visualize=False)
+
+                # 准备输出数据
+                results = []
+                for idx in regime_locations:
+                    # 只有当索引大于0且小于序列长度时才认为是有效分割点
+                    if idx > 0 and idx < len(df):
+                        row = df.iloc[idx]
+                        results.append({
+                            'timestamp': row['timestamp'],
+                            'power': row['power'],
+                            'datetime': row['datetime'],
+                            'changepoint_index': idx
+                        })
+
+                # 保存结果 (仅当存在有效分割点时)
+                if results:
+                    pd.DataFrame(results).to_csv(output_file_path, index=False)
+                else:
+                    print(f"[{appliance}] 文件 {file_name} 未检测到有效分割点(均为0或空)，跳过保存。")
+
+            except Exception as e:
+                print(f"处理文件 {file_name} 时发生错误: {e}")
+
+    print(f"\n所有电器处理完成！结果保存在: {base_output_dir}")

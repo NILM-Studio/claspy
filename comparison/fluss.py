@@ -293,11 +293,6 @@ if __name__ == "__main__":
             output_file_name = f"Changepoints_{file_name}"
             output_file_path = os.path.join(output_dir, output_file_name)
 
-            # 如果文件已存在，跳过
-            if os.path.exists(output_file_path):
-                # print(f"文件 {output_file_name} 已存在，跳过。")
-                continue
-
             # 读取数据
             df = pd.read_csv(file_path)
             if len(df) < 50:  # 数据量过少跳过
@@ -308,7 +303,7 @@ if __name__ == "__main__":
 
             # 运行FLUSS (window_size=20, n_regimes=3)
             # 根据用户需求，n_regimes=3 会检测出2个分割点
-            _, regime_locations = fluss(ts, window_size=20, n_regimes=3, excl_factor=1, visualize=False)
+            _, regime_locations = fluss(ts, window_size=20, n_regimes=3, excl_factor=10, visualize=False)
 
             # 准备输出数据
             results = []

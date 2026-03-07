@@ -94,6 +94,6 @@ if __name__ == "__main__":
     data_dir = r"f:\B__ProfessionProject\NILM\Clasp\mean_reversion(out-of-date)\project\washing_machine\related\data"
     
     # 设置变量n代表所选label个数
-    n = 3
+    n = 5
     
     plot_comparison(fluss_label_dir, wavelet_label_dir, data_dir, n)

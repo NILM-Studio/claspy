@@ -139,3 +139,14 @@ claspy/data/
 
 # Apple
 .DS_Store
+
+# mean_reversion project files
+
+# plot directory
+plot/
+
+# wavelet_clasp_segmentation project files
+wavelet_clasp_segmentation/all_machine.zip
+
+# .gitignore
+.gitignore

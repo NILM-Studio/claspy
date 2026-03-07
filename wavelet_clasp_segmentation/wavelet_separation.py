@@ -413,7 +413,7 @@ if __name__ == "__main__":
     # Can be a file path or a directory path
     input_source = r"./mean_reversion(out-of-date)\select\output"
     # input_source = r"./wavelet_clasp_segmentation\process_data\process_data\washing_machine_channel_5"
-    output_directory = r"./wavelet_clasp_segmentation\all_machine\fridge"
+    output_directory = r"./wavelet_clasp_segmentation\outputs\all_machine\fridge"
     
     # Parameter n: generate top n plots for each file
     n_plots = 1

@@ -9,3 +9,7 @@ setuptools>=78.1
 statsmodels>=0.12.1
 matplotlib>=3.3.2
 daproli>=0.22
+PyWavelets==1.8.0
+claspy==0.2.7
+joblib==1.5.3
+stumpy>=1.0.0,<2.0.0
